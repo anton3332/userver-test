@@ -1,0 +1,58 @@
+{% import "utils.inc.jinja" as utils %}
+{{- utils.do_not_edit() }}
+// This file was generated from {{ proto.source_file }}
+#include "{{ proto.source_file_without_ext }}_client.usrv.pb.hpp"
+
+{# All constant includes must go inside this header #}
+#include <userver/ugrpc/client/impl/codegen_definitions.hpp>
+
+{{ utils.include_grpcpp(proto.source_file_without_ext) }}
+
+{% call utils.optional_namespace(proto.namespace) %}
+
+namespace {
+{% for service in proto.services %}
+
+constexpr std::string_view k{{service.name}}MethodNames[] = {
+  {% for method in service.method %}
+  "{{proto.package_prefix}}{{service.name}}/{{method.name}}",
+  {% endfor %}
+};
+{% endfor %}
+
+}  // namespace
+{% for service in proto.services %}
+
+{{service.name}}Client::{{service.name}}Client(
+    USERVER_NAMESPACE::ugrpc::client::impl::ChannelCache::Token&& channel_token,
+    ::grpc::CompletionQueue& queue,
+    USERVER_NAMESPACE::ugrpc::impl::ServiceStatistics& statistics)
+    : impl_(std::move(channel_token), queue, statistics,
+            std::in_place_type<{{service.name}}>) {}
+  {% for method in service.method %}
+  {% set method_id = loop.index0 %}
+
+{{service.name}}Client::{{method.name}}Call
+{{service.name}}Client::{{method.name}}(
+    {% if not method.client_streaming %}
+    const {{ method.input_type | grpc_to_cpp_name }}& request,
+    {% endif %}
+    std::unique_ptr<::grpc::ClientContext> context) {
+  return {impl_.NextStub<{{service.name}}>(), impl_.GetQueue(),
+          &{{service.name}}::Stub::PrepareAsync{{method.name}},
+          k{{service.name}}MethodNames[{{method_id}}],
+          {% if method.client_streaming %}
+          std::move(context), impl_.GetStatistics({{method_id}})};
+          {% else %}
+          std::move(context), impl_.GetStatistics({{method_id}}), request};
+          {% endif %}
+}
+  {% endfor %}
+
+USERVER_NAMESPACE::ugrpc::impl::StaticServiceMetadata
+{{ service.name }}Client::GetMetadata() {
+  return USERVER_NAMESPACE::ugrpc::impl::MakeStaticServiceMetadata<{{service.name}}>(
+      k{{service.name}}MethodNames);
+}
+{% endfor %}
+{% endcall %} {# utils.optional_namespace #}
